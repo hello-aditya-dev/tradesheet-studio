@@ -3,6 +3,7 @@ node_modules/
 frontend/node_modules/
 site/node_modules/
 site/.next/
+site/out/
 site/next-env.d.ts
 
 # Generated release artifacts

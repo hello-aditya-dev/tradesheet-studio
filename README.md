@@ -35,6 +35,17 @@ buyer portal, quotation revisions, and the final WooCommerce order anchored to
    plugin creates the WooCommerce order with the negotiated line prices,
    idempotently (concurrent or duplicate submissions cannot create two orders).
 
+## Marketing site (GitHub Pages)
+
+The product landing page lives in [`site/`](site/) as a static-exported
+Next.js app and is published automatically on every push to `main` that
+touches `site/**`:
+
+**<https://hello-aditya-dev.github.io/tradesheet-studio/>**
+
+See [`site/README.md`](site/README.md) for local development, the static
+build, and how the `.github/workflows/deploy-site.yml` pipeline works.
+
 ## Requirements
 
 - WordPress 6.4 or newer
