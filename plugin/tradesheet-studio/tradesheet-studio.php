@@ -14,7 +14,7 @@
  * Requires at least:    6.4
  * Requires PHP:         8.1
  * WC requires at least: 8.0
- * WC tested up to:      9.9
+ * WC tested up to:      11.2
  * Author:               Aditya
  * Author URI:           https://dev-aditya.com
  * License:              GPL-2.0-or-later
@@ -39,20 +39,20 @@ require_once TSS_PLUGIN_DIR . 'src/Support/Autoloader.php';
 
 // Declare WooCommerce feature compatibility (HPOS) before WooCommerce boots.
 add_action( 'before_woocommerce_init', static function (): void {
-	if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
-		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', TSS_PLUGIN_FILE, true );
-	}
+        if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
+                \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', TSS_PLUGIN_FILE, true );
+        }
 } );
 
 register_activation_hook( __FILE__, array( \TradeSheetStudio\Core\Installer::class, 'activate' ) );
 register_deactivation_hook( __FILE__, array( \TradeSheetStudio\Core\Installer::class, 'deactivate' ) );
 
 add_action( 'plugins_loaded', static function (): void {
-	$requirements = new \TradeSheetStudio\Core\Requirements();
-	if ( ! $requirements->check() ) {
-		$requirements->notify();
-		return;
-	}
+        $requirements = new \TradeSheetStudio\Core\Requirements();
+        if ( ! $requirements->check() ) {
+                $requirements->notify();
+                return;
+        }
 
-	( new \TradeSheetStudio\Core\Plugin() )->boot();
+        ( new \TradeSheetStudio\Core\Plugin() )->boot();
 }, 20 );
