@@ -1,0 +1,30 @@
+# Dependencies / build tooling
+node_modules/
+frontend/node_modules/
+site/node_modules/
+site/.next/
+site/next-env.d.ts
+
+# Generated release artifacts
+dist/
+releases/
+*.zip
+
+# Runtime / secrets / local env
+.env
+.env.*
+*.local
+secrets.*
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Test artifacts
+.phpunit.result.cache
+.phpunit.cache/
+tests/.tmp/
+/tmp-*/
+.php_cs.cache
+coverage/
