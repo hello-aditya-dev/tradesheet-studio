@@ -27,186 +27,215 @@ namespace TradeSheetStudio\Support;
 
 final class Money {
 
-	public const SCALE   = 4;
-	public const MAX_QTY = 100000;
+        public const SCALE   = 4;
+        public const MAX_QTY = 100000;
 
-	public static function isValid( string $value ): bool {
-		return preg_match( '/^-?\d{1,9}(\.\d{1,4})?$/', $value ) === 1;
-	}
+        public static function isValid( string $value ): bool {
+                return preg_match( '/^-?\d{1,9}(\.\d{1,4})?$/', $value ) === 1;
+        }
 
-	public static function assertValid( string $value ): void {
-		if ( ! self::isValid( $value ) ) {
-			throw new \InvalidArgumentException( sprintf( 'Invalid money value: %s', $value ) );
-		}
-	}
+        public static function assertValid( string $value ): void {
+                if ( ! self::isValid( $value ) ) {
+                        throw new \InvalidArgumentException( sprintf( 'Invalid money value: %s', $value ) );
+                }
+        }
 
-	public static function zero(): string {
-		return '0.0000';
-	}
+        public static function zero(): string {
+                return '0.0000';
+        }
 
-	/**
-	 * Round half-away-from-zero to $dp decimals (0..4).
-	 */
-	public static function round( string $value, int $dp = self::SCALE ): string {
-		self::assertValid( $value );
-		$dp  = max( 0, min( 4, $dp ) );
-		$neg = ( $value !== '' && '0' !== $value && $value[0] === '-' );
+        /**
+         * Normalize a database money value to the canonical scale-4 string.
+         * Some drivers (e.g. SQLite/PDO) return DECIMAL columns without the
+         * defined scale ("4399" instead of "4399.0000"); MySQL/MariaDB return
+         * the padded form. Canonicalization makes both storage worlds produce
+         * identical canonical snapshots.
+         */
+        public static function fromDb( mixed $value, int $dp = self::SCALE ): string {
+                $s = trim( (string) $value );
 
-		if ( $neg ) {
-			$value = substr( $value, 1 );
-		}
+                if ( '' === $s ) {
+                        return '0.0000';
+                }
 
-		[ $int, $frac ] = self::split( $value );
-		$scaled         = (int) ( $int . substr( str_pad( $frac, $dp + 1, '0', STR_PAD_RIGHT ), 0, $dp + 1 ) );
-		$q              = intdiv( $scaled, 10 );
-		if ( $scaled % 10 >= 5 ) {
-			++$q;
-		}
+                if ( ! self::isValid( $s ) ) {
+                        $s = self::round( preg_replace( '/[^0-9.\-]/', '', $s ) ?? '', $dp );
+                        if ( ! self::isValid( $s ) ) {
+                                return '0.0000';
+                        }
+                }
 
-		$out = self::build( $q, $dp );
+                return self::round( $s, $dp );
+        }
 
-		return $neg ? '-' . $out : $out;
-	}
+        /**
+         * Round half-away-from-zero to $dp decimals (0..4).
+         */
+        public static function round( string $value, int $dp = self::SCALE ): string {
+                self::assertValid( $value );
+                $dp  = max( 0, min( 4, $dp ) );
+                $neg = ( $value !== '' && '0' !== $value && $value[0] === '-' );
 
-	public static function add( string $a, string $b ): string {
-		return self::fromScaledInt( self::toScaledInt( $a ) + self::toScaledInt( $b ) );
-	}
+                if ( $neg ) {
+                        $value = substr( $value, 1 );
+                }
 
-	public static function sub( string $a, string $b ): string {
-		return self::fromScaledInt( self::toScaledInt( $a ) - self::toScaledInt( $b ) );
-	}
+                [ $int, $frac ] = self::split( $value );
+                $scaled         = (int) ( $int . substr( str_pad( $frac, $dp + 1, '0', STR_PAD_RIGHT ), 0, $dp + 1 ) );
+                $q              = intdiv( $scaled, 10 );
+                if ( $scaled % 10 >= 5 ) {
+                        ++$q;
+                }
 
-	/**
-	 * Multiply a decimal by an integer quantity.
-	 */
-	public static function mul( string $a, int $qty ): string {
-		if ( $qty < 0 ) {
-			throw new \InvalidArgumentException( 'Quantity must be non-negative.' );
-		}
-		if ( $qty > self::MAX_QTY ) {
-			throw new \InvalidArgumentException( sprintf( 'Quantity exceeds the supported maximum of %d.', self::MAX_QTY ) );
-		}
+                $out = self::build( $q, $dp );
 
-		return self::fromScaledInt( self::toScaledInt( $a ) * $qty );
-	}
+                return $neg ? '-' . $out : $out;
+        }
 
-	public static function cmp( string $a, string $b ): int {
-		return self::toScaledInt( $a ) <=> self::toScaledInt( $b );
-	}
+        public static function add( string $a, string $b ): string {
+                return self::fromScaledInt( self::toScaledInt( $a ) + self::toScaledInt( $b ) );
+        }
 
-	public static function equals( string $a, string $b ): bool {
-		return self::cmp( $a, $b ) === 0;
-	}
+        public static function sub( string $a, string $b ): string {
+                return self::fromScaledInt( self::toScaledInt( $a ) - self::toScaledInt( $b ) );
+        }
 
-	/**
-	 * Percentage of a value: a * pct / 100, rounded half-away-from-zero at the
-	 * working scale. Percentage precision is two decimals.
-	 */
-	public static function percent( string $a, string $pct ): string {
-		self::assertValid( $a );
-		$pct = self::round( $pct, 2 );
-		self::assertValid( $pct );
+        /**
+         * Multiply a decimal by an integer quantity.
+         */
+        public static function mul( string $a, int $qty ): string {
+                if ( $qty < 0 ) {
+                        throw new \InvalidArgumentException( 'Quantity must be non-negative.' );
+                }
+                if ( $qty > self::MAX_QTY ) {
+                        throw new \InvalidArgumentException( sprintf( 'Quantity exceeds the supported maximum of %d.', self::MAX_QTY ) );
+                }
 
-		$ai = self::toScaledInt( $a );    // scale 4.
-		$pi = self::toScaledInt2( $pct ); // scale 2.
+                return self::fromScaledInt( self::toScaledInt( $a ) * $qty );
+        }
 
-		$prod = $ai * $pi;                // scale 6.
-		$q    = intdiv( $prod, 100 );     // scale 4.
-		if ( ( abs( $prod ) % 100 ) >= 50 ) {
-			$q += ( $prod >= 0 ) ? 1 : -1;
-		}
+        public static function cmp( string $a, string $b ): int {
+                return self::toScaledInt( $a ) <=> self::toScaledInt( $b );
+        }
 
-		return self::fromScaledInt( $q );
-	}
+        public static function equals( string $a, string $b ): bool {
+                return self::cmp( $a, $b ) === 0;
+        }
 
-	/**
-	 * Presentation formatting: fixed decimals, optional thousands separator.
-	 */
-	public static function format( string $value, int $dp = 2, string $decimalSep = '.', string $thousandsSep = '' ): string {
-		$rounded = self::round( $value, $dp );
-		$neg     = ( $rounded !== '' && $rounded[0] === '-' );
-		if ( $neg ) {
-			$rounded = substr( $rounded, 1 );
-		}
+        /**
+         * Percentage OF a value: a * pct / 100, rounded half-away-from-zero at the
+         * working scale. Percentage precision is two decimals.
+         */
+        public static function percent( string $a, string $pct ): string {
+                self::assertValid( $a );
+                $pct = self::round( $pct, 2 );
+                self::assertValid( $pct );
 
-		[ $int, $frac ] = self::split( $rounded );
-		$frac           = str_pad( $frac, $dp, '0', STR_PAD_RIGHT );
+                $ai = self::toScaledInt( $a );    // scale 4.
+                $pi = self::toScaledInt2( $pct ); // scale 2.
 
-		if ( $thousandsSep !== '' ) {
-			$int = preg_replace( '/\B(?=(\d{3})+(?!\d))/', $thousandsSep, $int ) ?? $int;
-		}
+                $prod = $ai * $pi;                // scale 6.
+                // Result at scale 4: (ai*pi) encodes a*pct with 6 decimals, and the
+                // /100 percentage division removes two more — divide by 10^4.
+                $divisor = 10 ** 4;
+                $q       = intdiv( $prod, $divisor );
+                $rem     = abs( $prod ) % $divisor;
 
-		$out = ( $dp > 0 ) ? $int . $decimalSep . $frac : $int;
+                if ( $rem * 2 >= $divisor ) {
+                        $q += ( $prod >= 0 ) ? 1 : -1;
+                }
 
-		return $neg ? '-' . $out : $out;
-	}
+                return self::fromScaledInt( $q );
+        }
 
-	/**
-	 * Convert a validated decimal string (<= 4 fraction digits) to a scaled
-	 * integer at the working scale.
-	 */
-	private static function toScaledInt( string $value ): int {
-		self::assertValid( $value );
-		$neg = ( $value !== '' && $value[0] === '-' );
-		if ( $neg ) {
-			$value = substr( $value, 1 );
-		}
+        /**
+         * Presentation formatting: fixed decimals, optional thousands separator.
+         */
+        public static function format( string $value, int $dp = 2, string $decimalSep = '.', string $thousandsSep = '' ): string {
+                $rounded = self::round( $value, $dp );
+                $neg     = ( $rounded !== '' && $rounded[0] === '-' );
+                if ( $neg ) {
+                        $rounded = substr( $rounded, 1 );
+                }
 
-		[ $int, $frac ] = self::split( $value );
-		$frac           = str_pad( $frac, self::SCALE, '0', STR_PAD_RIGHT );
+                [ $int, $frac ] = self::split( $rounded );
+                $frac           = str_pad( $frac, $dp, '0', STR_PAD_RIGHT );
 
-		$scaled = (int) $int * ( 10 ** self::SCALE ) + (int) $frac;
+                if ( $thousandsSep !== '' ) {
+                        $int = preg_replace( '/\B(?=(\d{3})+(?!\d))/', $thousandsSep, $int ) ?? $int;
+                }
 
-		return $neg ? -$scaled : $scaled;
-	}
+                $out = ( $dp > 0 ) ? $int . $decimalSep . $frac : $int;
 
-	/**
-	 * Scale-2 variant used for percentage inputs.
-	 */
-	private static function toScaledInt2( string $value ): int {
-		self::assertValid( $value );
-		$neg = ( $value !== '' && $value[0] === '-' );
-		if ( $neg ) {
-			$value = substr( $value, 1 );
-		}
+                return $neg ? '-' . $out : $out;
+        }
 
-		[ $int, $frac ] = self::split( $value );
-		$frac           = str_pad( $frac, 2, '0', STR_PAD_RIGHT );
+        /**
+         * Convert a validated decimal string (<= 4 fraction digits) to a scaled
+         * integer at the working scale.
+         */
+        private static function toScaledInt( string $value ): int {
+                self::assertValid( $value );
+                $neg = ( $value !== '' && $value[0] === '-' );
+                if ( $neg ) {
+                        $value = substr( $value, 1 );
+                }
 
-		$scaled = (int) $int * 100 + (int) substr( $frac, 0, 2 );
+                [ $int, $frac ] = self::split( $value );
+                $frac           = str_pad( $frac, self::SCALE, '0', STR_PAD_RIGHT );
 
-		return $neg ? -$scaled : $scaled;
-	}
+                $scaled = (int) $int * ( 10 ** self::SCALE ) + (int) $frac;
 
-	private static function fromScaledInt( int $value ): string {
-		$neg = $value < 0 ? '-' : '';
-		$value = abs( $value );
+                return $neg ? -$scaled : $scaled;
+        }
 
-		$s = (string) $value;
-		$s = str_pad( $s, self::SCALE + 1, '0', STR_PAD_LEFT );
+        /**
+         * Scale-2 variant used for percentage inputs.
+         */
+        private static function toScaledInt2( string $value ): int {
+                self::assertValid( $value );
+                $neg = ( $value !== '' && $value[0] === '-' );
+                if ( $neg ) {
+                        $value = substr( $value, 1 );
+                }
 
-		return $neg . substr( $s, 0, -self::SCALE ) . '.' . substr( $s, -self::SCALE );
-	}
+                [ $int, $frac ] = self::split( $value );
+                $frac           = str_pad( $frac, 2, '0', STR_PAD_RIGHT );
 
-	/**
-	 * @return array{0:string,1:string}
-	 */
-	private static function split( string $value ): array {
-		$pos = strpos( $value, '.' );
-		if ( false === $pos ) {
-			return array( $value, '' );
-		}
+                $scaled = (int) $int * 100 + (int) substr( $frac, 0, 2 );
 
-		return array( substr( $value, 0, $pos ), substr( $value, $pos + 1 ) );
-	}
+                return $neg ? -$scaled : $scaled;
+        }
 
-	private static function build( int $value, int $dp ): string {
-		if ( 0 === $dp ) {
-			return (string) $value;
-		}
+        private static function fromScaledInt( int $value ): string {
+                $neg = $value < 0 ? '-' : '';
+                $value = abs( $value );
 
-		$s = str_pad( (string) $value, $dp + 1, '0', STR_PAD_LEFT );
+                $s = (string) $value;
+                $s = str_pad( $s, self::SCALE + 1, '0', STR_PAD_LEFT );
 
-		return substr( $s, 0, -$dp ) . '.' . substr( $s, -$dp );
-	}
+                return $neg . substr( $s, 0, -self::SCALE ) . '.' . substr( $s, -self::SCALE );
+        }
+
+        /**
+         * @return array{0:string,1:string}
+         */
+        private static function split( string $value ): array {
+                $pos = strpos( $value, '.' );
+                if ( false === $pos ) {
+                        return array( $value, '' );
+                }
+
+                return array( substr( $value, 0, $pos ), substr( $value, $pos + 1 ) );
+        }
+
+        private static function build( int $value, int $dp ): string {
+                if ( 0 === $dp ) {
+                        return (string) $value;
+                }
+
+                $s = str_pad( (string) $value, $dp + 1, '0', STR_PAD_LEFT );
+
+                return substr( $s, 0, -$dp ) . '.' . substr( $s, -$dp );
+        }
 }

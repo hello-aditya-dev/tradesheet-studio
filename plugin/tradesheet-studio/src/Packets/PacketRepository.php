@@ -230,8 +230,8 @@ final class PacketRepository {
                         $params[] = $like;
                 }
 
-                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from internal fixed list.
-                $sql = 'SELECT * FROM ' . Schema::tableName( 'tss_packets' ) . $where . ' ORDER BY updated_at DESC LIMIT %d OFFSET %d';
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names from internal fixed lists.
+                $sql = 'SELECT p.*, v.version_no FROM ' . Schema::tableName( 'tss_packets' ) . ' p LEFT JOIN ' . Schema::tableName( 'tss_packet_versions' ) . ' v ON v.id = p.current_version_id' . $where . ' ORDER BY p.updated_at DESC LIMIT %d OFFSET %d';
                 $params[] = $perPage;
                 $params[] = $offset;
 
@@ -364,7 +364,7 @@ final class PacketRepository {
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from internal fixed list.
                 $rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Schema::tableName( 'tss_packet_lines' ) . ' WHERE packet_id = %d AND version_id IS NULL ORDER BY sort_order ASC, id ASC', $packetId ), ARRAY_A );
 
-                return is_array( $rows ) ? $rows : array();
+                return is_array( $rows ) ? array_map( array( $this, 'normalizeLine' ), $rows ) : array();
         }
 
         public function addDraftLine( int $packetId, int $productId, int $variationId, string $unitPrice, string $priceSource, int $qtyMin, int $qtyStep, array $qtyBreaks, ?string $description = null ): int {
@@ -515,6 +515,30 @@ final class PacketRepository {
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from internal fixed list.
                 $rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Schema::tableName( 'tss_packet_lines' ) . ' WHERE version_id = %d ORDER BY sort_order ASC, id ASC', $versionId ), ARRAY_A );
 
-                return is_array( $rows ) ? $rows : array();
+                return is_array( $rows ) ? array_map( array( $this, 'normalizeLine' ), $rows ) : array();
+        }
+
+        /**
+         * Canonicalize money fields on database reads (driver-independent).
+         *
+         * @param array<string,mixed> $line
+         * @return array<string,mixed>
+         */
+        private function normalizeLine( array $line ): array {
+                $line['unit_price'] = Money::fromDb( $line['unit_price'] ?? '0' );
+
+                if ( ! empty( $line['qty_breaks'] ) ) {
+                        $breaks = json_decode( (string) $line['qty_breaks'], true );
+                        if ( is_array( $breaks ) ) {
+                                foreach ( $breaks as $index => $break ) {
+                                        if ( is_array( $break ) && isset( $break['qty'], $break['price'] ) ) {
+                                                $breaks[ $index ] = array( 'qty' => (int) $break['qty'], 'price' => Money::fromDb( $break['price'] ) );
+                                        }
+                                }
+                                $line['qty_breaks'] = Utils::jsonEncode( $breaks );
+                        }
+                }
+
+                return $line;
         }
 }

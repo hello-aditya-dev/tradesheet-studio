@@ -330,7 +330,15 @@ final class QuoteRepository {
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from internal fixed list.
                 $rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . Schema::tableName( 'tss_quote_lines' ) . ' WHERE quote_id = %d ORDER BY id ASC', $quoteId ), ARRAY_A );
 
-                return is_array( $rows ) ? $rows : array();
+                if ( ! is_array( $rows ) ) {
+                        return array();
+                }
+
+                foreach ( $rows as $index => $row ) {
+                        $rows[ $index ]['unit_price'] = Money::fromDb( $row['unit_price'] ?? '0' );
+                }
+
+                return $rows;
         }
 
         public function setStatus( int $id, string $to, ?int $actorId = null, array $context = array() ): string {
@@ -414,6 +422,11 @@ final class QuoteRepository {
                 $packetId = (int) $quote['packet_id'];
                 $packet   = $this->packets->get( $packetId );
                 if ( null !== $packet && in_array( (string) $packet['status'], array( PacketStateMachine::SUBMITTED, PacketStateMachine::IN_REVIEW ), true ) ) {
+                        // Two-step transition keeps the state machine authoritative:
+                        // submitted → in_review → approved.
+                        if ( PacketStateMachine::SUBMITTED === (string) $packet['status'] ) {
+                                $this->packets->setStatus( $packetId, PacketStateMachine::IN_REVIEW, $actorId );
+                        }
                         $this->packets->setStatus( $packetId, PacketStateMachine::APPROVED, $actorId );
                 }
 
@@ -452,6 +465,11 @@ final class QuoteRepository {
 
                 $packetId = (int) $quote['packet_id'];
                 if ( in_array( (string) $packet['status'], array( PacketStateMachine::SUBMITTED, PacketStateMachine::IN_REVIEW, PacketStateMachine::APPROVED ), true ) ) {
+                        // Two-step transitions keep the machine authoritative for the
+                        // revision path (in_review → approved → accepted).
+                        if ( PacketStateMachine::IN_REVIEW === (string) $packet['status'] ) {
+                                $this->packets->setStatus( $packetId, PacketStateMachine::APPROVED, $actorId );
+                        }
                         $this->packets->setStatus( $packetId, PacketStateMachine::ACCEPTED, $actorId );
                 }
 

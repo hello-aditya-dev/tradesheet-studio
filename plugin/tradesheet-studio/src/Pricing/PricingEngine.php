@@ -102,7 +102,7 @@ final class PricingEngine {
                                 $ruleId
                         );
                 } elseif ( null !== ( $winner['percent_off'] ?? null ) && '' !== (string) $winner['percent_off'] ) {
-                        $price       = Money::percent( $base, (string) $winner['percent_off'] );
+                        $price       = Money::sub( $base, Money::percent( $base, (string) $winner['percent_off'] ) );
                         $explanation = sprintf(
                                 /* translators: 1: rule id, 2: percent. */
                                 __( 'Base price less %2$s%% discount (rule #%1$d).', 'tradesheet-studio' ),

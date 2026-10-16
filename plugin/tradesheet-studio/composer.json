@@ -1,0 +1,26 @@
+{
+        "name": "aditya/tradesheet-studio",
+        "description": "TradeSheet Studio — Wholesale sales packets, PDF catalogs, CSV order sheets and quotation management for WooCommerce.",
+        "type": "wordpress-plugin",
+        "license": "GPL-2.0-or-later",
+        "authors": [
+                {
+                        "name": "Aditya",
+                        "email": "hi.aditya.dev@gmail.com",
+                        "homepage": "https://dev-aditya.com"
+                }
+        ],
+        "require": {
+                "php": ">=8.1",
+                "ext-mbstring": "*",
+                "ext-dom": "*",
+                "dompdf/dompdf": "^3.1.6"
+        },
+        "config": {
+                "optimize-autoloader": true,
+                "platform": {
+                        "php": "8.1.99"
+                },
+                "allow-plugins": false
+        }
+}

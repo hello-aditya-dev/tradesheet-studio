@@ -1,0 +1,19 @@
+{
+        "compilerOptions": {
+                "target": "ES2019",
+                "module": "ESNext",
+                "moduleResolution": "bundler",
+                "lib": ["ES2020", "DOM", "DOM.Iterable"],
+                "jsx": "preserve",
+                "strict": true,
+                "noEmit": true,
+                "esModuleInterop": true,
+                "isolatedModules": true,
+                "skipLibCheck": true,
+                "forceConsistentCasingInFileNames": true,
+                "noUnusedLocals": true,
+                "noUnusedParameters": true,
+                "types": []
+        },
+        "include": ["src/**/*.ts", "src/**/*.tsx", "src/types/**/*.d.ts"]
+}
